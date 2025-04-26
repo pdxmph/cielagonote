@@ -2,13 +2,25 @@
 
 require 'fileutils'
 require 'date'
+require 'yaml'
 
-# --- CONFIGURATION ---
-notes_dir = File.expand_path("~/notes")
-default_extension = "md"  # or "org"
-editor = "nb edit"        # your editing command (adjust if needed)
-use_fulltext_search = true
-# ----------------------
+# --- LOAD CONFIGURATION ---
+default_config = {
+  "notes_dir" => "~/notes",
+  "default_extension" => "md",
+  "exclude_dirs" => [],
+  "editor" => "nb edit"
+}
+
+config_file = File.expand_path("~/.zvconfig.yml")
+user_config = File.exist?(config_file) ? YAML.load_file(config_file) : {}
+
+config = default_config.merge(user_config)
+
+notes_dir = File.expand_path(config["notes_dir"])
+default_extension = config["default_extension"]
+exclude_dirs = config["exclude_dirs"]
+editor = config["editor"]
 
 # --- HELPER FUNCTIONS ---
 def slugify(text)
@@ -39,18 +51,21 @@ def create_note(notes_dir, title, extension)
   path
 end
 
+def load_notes(notes_dir, exclude_dirs)
+  exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
+  rg_command = "rg --files --hidden #{exclude_patterns} #{notes_dir}"
+  rg_output = `#{rg_command}`
+  rg_output.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
+end
+
+def today_note_name(extension)
+  "daily-#{Date.today.strftime("%m-%d-%Y")}.#{extension}"
+end
+
 # --- MAIN LOOP ---
 loop do
-  files = Dir.glob("#{notes_dir}/**/*.{org,md}").map { |f| f.sub("#{notes_dir}/", '') }
-
-  matches = if use_fulltext_search
-    rg_output = `rg --files-with-matches --hidden --glob '!denote/**' '' #{notes_dir}`
-    rg_output.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
-  else
-    files
-  end
-
-  today_slug = today_date
+  files = load_notes(notes_dir, exclude_dirs)
+  today_file = today_note_name(default_extension)
 
   fzf_command = [
     'fzf',
@@ -58,12 +73,12 @@ loop do
     '--layout=reverse',
     '--print-query',
     '--expect=enter,ctrl-n',
-    '--preview', %Q{( [[ {} == ":today" ]] && ([[ -f #{notes_dir}/daily-#{today_slug}.#{default_extension} ]] && bat --style=numbers --color=always #{notes_dir}/daily-#{today_slug}.#{default_extension} || echo "No daily note yet.") ) || ([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "Will create: #{today_date}-$(echo {} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g').#{default_extension}")},
+    '--preview', %Q{( [[ {} == "[+] Create new note:"* ]] && echo "Will create: #{today_date}-$(echo {q} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g').#{default_extension}" ) || ([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
     '--preview-window', 'right:70%:wrap'
   ]
 
   selected = IO.popen(fzf_command, 'r+') do |fzf|
-    matches.each { |file| fzf.puts(file) }
+    ([today_file] + files).each { |file| fzf.puts(file) }
     fzf.close_write
     fzf.read
   end
@@ -93,25 +108,42 @@ loop do
   key.strip!
   selection.strip!
 
-  # --- DEBUG OUTPUT ---
+  # --- DEBUG OUTPUT (optional, comment out if noisy) ---
   puts "DEBUG:"
   puts "Key: #{key.inspect}"
   puts "Query: #{query.inspect}"
   puts "Selection: #{selection.inspect}"
   puts "------"
 
+  # --- ACTIONS ---
   if key == 'ctrl-n' && !query.empty?
     # Force create new note from query
     path = create_note(notes_dir, query, default_extension)
     system("#{editor} \"#{path}\"")
-  elsif key == 'enter' && !selection.empty?
-    # Normal open selected file
-    full_path = File.join(notes_dir, selection)
-    system("#{editor} \"#{full_path}\"")
-  elsif key == 'enter' && !query.empty?
-    # Create new note if no selection
-    path = create_note(notes_dir, query, default_extension)
-    system("#{editor} \"#{path}\"")
+  elsif key == 'enter'
+    if selection == today_file
+      # Special :today file handling
+      path = File.join(notes_dir, today_file)
+      unless File.exist?(path)
+        create_note(notes_dir, "Daily - #{today_date}", default_extension)
+      end
+      system("#{editor} \"#{path}\"")
+    elsif selection.start_with?("[+] Create new note:")
+      # Create from "new note" special entry
+      path = create_note(notes_dir, query, default_extension)
+      system("#{editor} \"#{path}\"")
+    elsif !selection.empty?
+      # Normal open selected file
+      full_path = File.join(notes_dir, selection)
+      system("#{editor} \"#{full_path}\"")
+    elsif !query.empty?
+      # Create from query if no selection
+      path = create_note(notes_dir, query, default_extension)
+      system("#{editor} \"#{path}\"")
+    else
+      puts "No valid action. Exiting."
+      break
+    end
   else
     puts "No valid action. Exiting."
     break
