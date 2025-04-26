@@ -65,6 +65,10 @@ def today_note_name(extension)
   "daily-#{Date.today.strftime("%m-%d-%Y")}.#{extension}"
 end
 
+def edit_with_cleanup(editor_command, path)
+  system("#{editor_command} \"#{path}\"; reset")
+end
+
 # --- MAIN LOOP ---
 loop do
   files = load_notes(notes_dir, exclude_dirs, hide_hidden)
@@ -122,29 +126,24 @@ loop do
 
   # --- ACTIONS ---
   if key == 'ctrl-n' && !query.empty?
-    # Force create new note from query
     path = create_note(notes_dir, query, default_extension)
-    system("#{editor} \"#{path}\"")
+    edit_with_cleanup(editor, path)
   elsif key == 'enter'
     if selection == today_file
-      # Special :today file handling
       path = File.join(notes_dir, today_file)
       unless File.exist?(path)
         create_note(notes_dir, "Daily - #{today_date}", default_extension)
       end
-      system("#{editor} \"#{path}\"")
+      edit_with_cleanup(editor, path)
     elsif selection.start_with?("[+] Create new note")
-      # Create from "new note" special entry
       path = create_note(notes_dir, query, default_extension)
-      system("#{editor} \"#{path}\"")
+      edit_with_cleanup(editor, path)
     elsif !selection.empty?
-      # Normal open selected file
       full_path = File.join(notes_dir, selection)
-      system("#{editor} \"#{full_path}\"")
+      edit_with_cleanup(editor, full_path)
     elsif !query.empty?
-      # Create from query if no selection
       path = create_note(notes_dir, query, default_extension)
-      system("#{editor} \"#{path}\"")
+      edit_with_cleanup(editor, path)
     else
       puts "No valid action. Exiting."
       break
