@@ -53,6 +53,10 @@ module CielagoNote
         path
       end
 
+      def self.today_filename(extension)
+        "daily-#{Date.today.strftime("%m-%d-%Y")}.#{extension}"
+      end
+
       def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
         exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
         hidden_flag = hide_hidden ? "" : "--hidden"
@@ -74,10 +78,10 @@ module CielagoNote
           '--prompt=Search or create: ',
           '--layout=reverse',
           '--print-query',
-          '--expect=enter,ctrl-n',
+          '--expect=enter,ctrl-n,ctrl-d,ctrl-r,ctrl-c,ctrl-t',
           '--preview', %Q{([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
           '--preview-window', 'right:70%:wrap',
-          '--header', 'Select a note or create a new one',
+          '--header', "\e[1m(n)\e[0mew, \e[1m(d)\e[0mel, \e[1m(c)\e[0mopy, \e[1m(r)\e[0mename, \e[1m(t)\e[0moday, \e[1m(enter)\e[0m edit",
           '--color', 'header:italic:underline,fg+:bright-white,bg+:black,fg:gray'
         ]
 
@@ -119,11 +123,12 @@ module CielagoNote
         puts "Selection: #{selection.inspect}"
         puts "------"
 
-        # --- ACTIONS ---
-        if key == 'ctrl-n' && !query.empty?
+        case key
+        when 'ctrl-n'
           path = create_note(notes_dir, query, default_extension)
           edit_with_cleanup(editor, path)
-        elsif key == 'enter'
+
+        when 'enter'
           if selection.start_with?("[+] Create new note")
             path = create_note(notes_dir, query, default_extension)
             edit_with_cleanup(editor, path)
@@ -133,7 +138,6 @@ module CielagoNote
               edit_with_cleanup(editor, full_path)
             else
               puts "Selected file does not exist. Aborting."
-              break
             end
           elsif !query.empty?
             path = create_note(notes_dir, query, default_extension)
@@ -142,6 +146,83 @@ module CielagoNote
             puts "No valid action. Exiting."
             break
           end
+
+        when 'ctrl-d'
+          if !selection.empty?
+            full_path = File.join(notes_dir, selection)
+            if File.exist?(full_path)
+              print "Delete #{selection}? (y/n): "
+              answer = STDIN.gets.chomp.downcase
+              if answer == 'y'
+                File.delete(full_path)
+                puts "Deleted."
+              else
+                puts "Cancelled."
+              end
+            else
+              puts "Selected file does not exist. Aborting."
+            end
+          else
+            puts "No note selected for deletion."
+          end
+
+        when 'ctrl-r'
+          if !selection.empty?
+            full_path = File.join(notes_dir, selection)
+            if File.exist?(full_path)
+              print "Rename #{selection} to (new name): [#{selection}] "
+              input = STDIN.gets.chomp
+              new_name = input.empty? ? selection : input
+              new_path = File.join(notes_dir, new_name)
+
+              if File.exist?(new_path)
+                puts "File #{new_name} already exists. Aborting."
+              else
+                FileUtils.mv(full_path, new_path)
+                puts "Renamed to #{new_name}"
+              end
+            else
+              puts "Selected file does not exist. Aborting."
+            end
+          else
+            puts "No note selected for renaming."
+          end
+
+        when 'ctrl-c'
+          if !selection.empty?
+            full_path = File.join(notes_dir, selection)
+            if File.exist?(full_path)
+              if RUBY_PLATFORM.include?("darwin")
+                system("cat \"#{full_path}\" | pbcopy")
+                puts "Copied to clipboard."
+              elsif RUBY_PLATFORM.include?("linux")
+                system("cat \"#{full_path}\" | xclip -selection clipboard")
+                puts "Copied to clipboard."
+              else
+                puts "Clipboard copy not supported on this platform."
+              end
+            else
+              puts "Selected file does not exist. Aborting."
+            end
+          else
+            puts "No note selected to copy."
+          end
+
+        when 'ctrl-t'
+          daily_file = today_filename(default_extension)
+          path = File.join(notes_dir, daily_file)
+          unless File.exist?(path)
+            File.open(path, 'w') do |f|
+              if default_extension == "md"
+                f.puts "# Daily - #{Date.today.strftime("%Y-%m-%d")}"
+              elsif default_extension == "org"
+                f.puts "#+TITLE: Daily - #{Date.today.strftime("%Y-%m-%d")}"
+              end
+            end
+            puts "Created daily note: #{path}"
+          end
+          edit_with_cleanup(editor, path)
+
         else
           puts "No valid action. Exiting."
           break
