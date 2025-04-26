@@ -32,12 +32,9 @@ module CielagoNote
         text.downcase.strip.gsub(/[^\w\s-]/, '').gsub(/\s+/, '-')
       end
 
-      def self.today_date
-        Date.today.strftime("%Y-%m-%d")
-      end
-
       def self.create_note(notes_dir, title, extension)
-        filename = "#{today_date}-#{slugify(title)}.#{extension}"
+        date_prefix = Date.today.strftime("%Y-%m-%d")
+        filename = "#{date_prefix}-#{slugify(title)}.#{extension}"
         path = File.join(notes_dir, filename)
 
         unless File.exist?(path)
@@ -64,10 +61,6 @@ module CielagoNote
         rg_output.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
       end
 
-      def self.today_note_name(extension)
-        "daily-#{Date.today.strftime("%m-%d-%Y")}.#{extension}"
-      end
-
       def self.edit_with_cleanup(editor_command, path)
         system("#{editor_command} \"#{path}\"; reset")
       end
@@ -75,7 +68,6 @@ module CielagoNote
       # --- MAIN LOOP ---
       loop do
         files = load_notes(notes_dir, exclude_dirs, hide_hidden)
-        today_file = today_note_name(default_extension)
 
         fzf_command = [
           'fzf',
@@ -83,14 +75,15 @@ module CielagoNote
           '--layout=reverse',
           '--print-query',
           '--expect=enter,ctrl-n',
-          '--preview', %Q{( [[ {} == "[+] Create new note:"* ]] && echo "Will create: #{today_date}-$(echo {q} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g').#{default_extension}" ) || ([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
+          '--preview', %Q{([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
           '--preview-window', 'right:70%:wrap',
           '--header', 'Select a note or create a new one',
           '--color', 'header:italic:underline,fg+:bright-white,bg+:black,fg:gray'
         ]
 
         selected = IO.popen(fzf_command, 'r+') do |fzf|
-          ([today_file] + files + ["[+] Create new note: {q}"]).each { |file| fzf.puts(file) }
+          files.each { |file| fzf.puts(file) }
+          fzf.puts "[+] Create new note: {q}"
           fzf.close_write
           fzf.read
         end
@@ -120,7 +113,6 @@ module CielagoNote
         key.strip!
         selection.strip!
 
-        # --- DEBUG OUTPUT (optional) ---
         puts "DEBUG:"
         puts "Key: #{key.inspect}"
         puts "Query: #{query.inspect}"
@@ -132,18 +124,17 @@ module CielagoNote
           path = create_note(notes_dir, query, default_extension)
           edit_with_cleanup(editor, path)
         elsif key == 'enter'
-          if selection == today_file
-            path = File.join(notes_dir, today_file)
-            unless File.exist?(path)
-              create_note(notes_dir, "Daily - #{today_date}", default_extension)
-            end
-            edit_with_cleanup(editor, path)
-          elsif selection.start_with?("[+] Create new note")
+          if selection.start_with?("[+] Create new note")
             path = create_note(notes_dir, query, default_extension)
             edit_with_cleanup(editor, path)
           elsif !selection.empty?
             full_path = File.join(notes_dir, selection)
-            edit_with_cleanup(editor, full_path)
+            if File.exist?(full_path)
+              edit_with_cleanup(editor, full_path)
+            else
+              puts "Selected file does not exist. Aborting."
+              break
+            end
           elsif !query.empty?
             path = create_note(notes_dir, query, default_extension)
             edit_with_cleanup(editor, path)
