@@ -9,10 +9,11 @@ default_config = {
   "notes_dir" => "~/notes",
   "default_extension" => "md",
   "exclude_dirs" => [],
-  "editor" => "nb edit"
+  "editor" => "nb edit",
+  "hide_hidden" => false
 }
 
-config_file = File.expand_path("~/.zvconfig.yml")
+config_file = File.expand_path("~/.cnconfig.yml")
 user_config = File.exist?(config_file) ? YAML.load_file(config_file) : {}
 
 config = default_config.merge(user_config)
@@ -21,6 +22,7 @@ notes_dir = File.expand_path(config["notes_dir"])
 default_extension = config["default_extension"]
 exclude_dirs = config["exclude_dirs"]
 editor = config["editor"]
+hide_hidden = config["hide_hidden"]
 
 # --- HELPER FUNCTIONS ---
 def slugify(text)
@@ -51,9 +53,10 @@ def create_note(notes_dir, title, extension)
   path
 end
 
-def load_notes(notes_dir, exclude_dirs)
+def load_notes(notes_dir, exclude_dirs, hide_hidden)
   exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
-  rg_command = "rg --files --hidden #{exclude_patterns} #{notes_dir}"
+  hidden_flag = hide_hidden ? "" : "--hidden"
+  rg_command = "rg --files #{hidden_flag} #{exclude_patterns} #{notes_dir}"
   rg_output = `#{rg_command}`
   rg_output.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
 end
@@ -64,7 +67,7 @@ end
 
 # --- MAIN LOOP ---
 loop do
-  files = load_notes(notes_dir, exclude_dirs)
+  files = load_notes(notes_dir, exclude_dirs, hide_hidden)
   today_file = today_note_name(default_extension)
 
   fzf_command = [
@@ -74,11 +77,13 @@ loop do
     '--print-query',
     '--expect=enter,ctrl-n',
     '--preview', %Q{( [[ {} == "[+] Create new note:"* ]] && echo "Will create: #{today_date}-$(echo {q} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g').#{default_extension}" ) || ([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
-    '--preview-window', 'right:70%:wrap'
+    '--preview-window', 'right:70%:wrap',
+    '--header', 'Select a note or create a new one',
+    '--color', 'header:italic:underline,fg+:bright-white,bg+:black,fg:gray'
   ]
 
   selected = IO.popen(fzf_command, 'r+') do |fzf|
-    ([today_file] + files).each { |file| fzf.puts(file) }
+    ([today_file] + files + ["[+] Create new note: {q}"]).each { |file| fzf.puts(file) }
     fzf.close_write
     fzf.read
   end
@@ -108,7 +113,7 @@ loop do
   key.strip!
   selection.strip!
 
-  # --- DEBUG OUTPUT (optional, comment out if noisy) ---
+  # --- DEBUG OUTPUT (optional) ---
   puts "DEBUG:"
   puts "Key: #{key.inspect}"
   puts "Query: #{query.inspect}"
@@ -128,7 +133,7 @@ loop do
         create_note(notes_dir, "Daily - #{today_date}", default_extension)
       end
       system("#{editor} \"#{path}\"")
-    elsif selection.start_with?("[+] Create new note:")
+    elsif selection.start_with?("[+] Create new note")
       # Create from "new note" special entry
       path = create_note(notes_dir, query, default_extension)
       system("#{editor} \"#{path}\"")
