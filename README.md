@@ -11,7 +11,7 @@ It's built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled n
 - YAML-based configuration (`~/.zvconfig.yml`)
 - New notes use date-stamped filenames (`YYYY-MM-DD-slugified-title.md`)
 - Clean previews with [`bat`](https://github.com/sharkdp/bat)
-- Maybe some day: templates, quick log capture, deletion
+- Daily notes: `C-t` to either make or jump to a daily note. 
 
 ---
 
@@ -39,6 +39,16 @@ It's built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled n
 5. Let `nb` handle version control automatically
 
 ---
+
+## Keystrokes
+
+|Key Combo | Action |
+|----|----|
+|C-c | Copy to clipboard|
+|C-d | Delete note (with confirm)|
+|C-r | Rename file|
+|C-t | Create or jump to daily-yyyy-mm-dd.ext|
+|C-q | Quit|
 
 ##  Configuration
 
