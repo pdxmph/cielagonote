@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "cielagonote"
-  spec.version       = "0.2.0"
+  spec.version       = "0.2.1"
   spec.authors       = ["Mike Hall"]
   spec.email         = ["mike@puddingtime.orgy"]
 

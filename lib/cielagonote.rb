@@ -54,7 +54,7 @@ module CielagoNote
       end
 
       def self.today_filename(extension)
-        "daily-#{Date.today.strftime("%m-%d-%Y")}.#{extension}"
+        "daily-#{Date.today.strftime("%Y-%m-%d")}.#{extension}"
       end
 
       def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
