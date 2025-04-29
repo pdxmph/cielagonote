@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+###############################################################################
+# daily.nb-plugin
+#
+# Write to a daily log using the same format as cn. Forked from the nb project's 
+# daily plugin
+#
+#   nb plugin install https://github.com/pdxmph/cielagonote/main/extras/cn-daily.nb-plugin
+#
+# A plugin for `nb`.
+#   https://github.com/xwmx/nb
+###############################################################################
+
+set -euo pipefail
+
+# Register the "daily" subcommand
+typed_subcmd="daily"
+_subcommands add "${typed_subcmd}"
+
+# Help/usage text
+_subcommands describe "${typed_subcmd}" <<HEREDOC
+$(_color_primary "Usage"):
+  ${_ME} ${typed_subcmd} [<content>] [--prev [<number>]]
+
+$(_color_primary "Options"):
+  --prev [<number>]   List previous days and show day by previous <number>.
+
+$(_color_primary "Description"):
+  Add notes to a daily log. When called without arguments, the current day's
+  log is displayed. When passed \`<content>\`, a new timestamped entry is added
+  to the current day's log, which is created if it doesn't yet exist.
+
+  Previous day's logs can be listed with the \`--prev\` option. View a previous
+  day's log by passing its \`<number>\` in the list.
+
+$(_color_primary "Examples"):
+  ${_ME} ${typed_subcmd} "Example note content."
+  ${_ME} ${typed_subcmd}
+  ${_ME} ${typed_subcmd} --prev
+  ${_ME} ${typed_subcmd} --prev 3
+HEREDOC
+
+# Main function for the "daily" subcommand
+_daily() {
+  # Collect arguments
+  local _content=("${@:-}")
+
+  # Helper to show a file
+  _daily_show() {
+    local path="$1"
+    [[ -n "$path" ]] || return 1
+    printf "%s:\n" "$(_color_primary "${path##*/}")"
+    _show "$path" --print
+  }
+
+  # Notebook path and dates
+  local nb_root date_compact date_human timestamp
+  nb_root="$(_notebooks current --path)"
+  date_compact=$(date +%Y-%m-%d)
+  date_human=$(date +%Y-%m-%d)
+  timestamp=$(date +%H:%M:%S)
+
+  # Target file
+  local filename="daily-${date_compact}.md"
+  local target_path="${nb_root}/${filename}"
+
+  # No args: view or prompt
+  if [[ -z "${_content[*]:-}" ]]; then
+    if [[ ! -e "$target_path" ]]; then
+      printf "Add the first note of the day: %s ${typed_subcmd} <content>\n" "${_ME}"
+    else
+      _daily_show "$target_path"
+    fi
+    return 0
+  fi
+
+  # Handle --prev flag
+  if _contains "${_content[0]}" --all --ago --day --days --prev --previous; then
+    local note_paths=()
+    IFS=$'\n' read -r -d '' -a note_paths < <(
+      find "$nb_root" -maxdepth 1 -type f -name "daily-???????.md" | sort && printf '\0'
+    )
+    if (( ${#note_paths[@]} == 0 )); then
+      printf "Add the first daily note: %s ${typed_subcmd} <content>\n" "${_ME}"
+      return 0
+    fi
+    if [[ "${_content[1]:-}" =~ ^[0-9]+$ ]]; then
+      local idx=$(( _content[1] + 1 ))
+      if (( idx > ${#note_paths[@]} )); then
+        _exit_1 printf "Not found.\n"
+      fi
+      _daily_show "${note_paths[-$idx]}"
+    else
+      local i=${#note_paths[@]}
+      for p in "${note_paths[@]}"; do
+        i=$((i-1))
+        _list "$p" --no-color | while IFS= read -r line; do
+          printf "%s %s\n" "$(_color_brackets "$i")" "$line"
+        done
+      done
+    fi
+    return 0
+  fi
+
+  # Build content text
+  local content_text
+  content_text="$(_join ' ' "${_content[@]}")"
+
+  # Create first entry or append new entries
+  if [[ ! -e "$target_path" ]]; then
+    # Create with header + first entry
+    local initial
+    initial=$(cat <<EOF
+# Daily Note - ${date_human}
+
+## [${timestamp}]
+${content_text}
+EOF
+)
+    _add --content "$initial" --filename "$filename"
+  else
+    # Append an H2 timestamp block and content
+    local append_text
+    append_text=$(cat <<EOF
+
+## [${timestamp}]
+${content_text}
+EOF
+)
+    _edit "$filename" --append "$append_text"
+  fi
+}
+
+# Register subcommand handler
+_subcommands func "${typed_subcmd}" "_daily"
