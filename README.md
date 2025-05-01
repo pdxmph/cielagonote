@@ -15,12 +15,15 @@ It was origiinally built to assume [`nb`](https://github.com/xwmx/nb) for versio
 
 ## Warnings
 
-This started as something to manage nb notes a little more quickly, but has taken a turn:
+This started as something to manage nb notes a little more quickly, but took a turn and can either continue to fit into `nb` or can just be a standalone notes manager: 
 
-- There's a fuzzy search plugin for nb that works fine and keeps you in complete alignment with nb if that's what you want. 
-- This doesn't use nb to do the file management parts I've added (delete, rename)
-- You can still set the editor command to `nb edit`, which means your edits will be synced. 
-- I'm considering making an "nb-clean" version where you can configure `nb: true` and get nb's native remove and rename functionality, which will ensure sync operations happen, etc. 
+- There's a fuzzy search plugin for nb that works fine and keeps you in complete alignment with nb if that's what you want, and may be good enough for most people. 
+- I've added preliminary support for nb file management and creation. It needs to be turned on in the config file (see _Configuration_ below)
+- With nb support enabled: 
+  - rename, deletion, and creation all go through nb commands
+  - your editor preference is overrideden in favor of your `nb` editor setting
+
+This all seems to work just fine, but it's preliminary support so you should pay attention to the first few outcomes. 
 
 ---
 
@@ -65,13 +68,13 @@ Example `~/.cnconfig.yml`
 
 ```yaml
 notes_dir: ~/notes
-default_extension: md
+default_extension: md # or org
 exclude_dirs:
   - denote
   - .git
-hide_hidden: true
-editor: nb edit
-
+hide_hidden: true # hides .files when enabled
+editor: micro # will be overridden with `nb edit` if nb_support == true
+nb_support: false # if true, overrides your editor: setting and enables nb file management
 ```
 
 ## Why?

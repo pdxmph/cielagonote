@@ -9,45 +9,51 @@ module CielagoNote
     def self.start
       # --- LOAD CONFIGURATION ---
       default_config = {
-        "notes_dir" => "~/notes",
-        "default_extension" => "md",
-        "exclude_dirs" => [],
-        "editor" => "nb edit",
-        "hide_hidden" => false
+        "notes_dir"          => "~/notes",
+        "default_extension"  => "md",
+        "exclude_dirs"       => [],
+        "editor"             => "vi",
+        "hide_hidden"        => false,
+        "nb_support"         => false
       }
+      config_file   = File.expand_path("~/.cnconfig.yml")
+      user_config   = File.exist?(config_file) ? YAML.load_file(config_file) : {}
+      config        = default_config.merge(user_config)
 
-      config_file = File.expand_path("~/.cnconfig.yml")
-      user_config = File.exist?(config_file) ? YAML.load_file(config_file) : {}
-
-      config = default_config.merge(user_config)
-
-      notes_dir = File.expand_path(config["notes_dir"])
+      notes_dir         = File.expand_path(config["notes_dir"])
       default_extension = config["default_extension"]
-      exclude_dirs = config["exclude_dirs"]
-      editor = config["editor"]
-      hide_hidden = config["hide_hidden"]
+      exclude_dirs      = config["exclude_dirs"]
+      hide_hidden       = config["hide_hidden"]
+      nb_support        = config["nb_support"]
+      editor_cmd        = nb_support ? "nb edit" : config["editor"]
 
       # --- HELPER FUNCTIONS ---
+
       def self.slugify(text)
         text.downcase.strip.gsub(/[^\w\s-]/, '').gsub(/\s+/, '-')
       end
 
-      def self.create_note(notes_dir, title, extension)
+      def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
         date_prefix = Date.today.strftime("%Y-%m-%d")
-        filename = "#{date_prefix}-#{slugify(title)}.#{extension}"
-        path = File.join(notes_dir, filename)
+        filename    = "#{date_prefix}-#{slugify(title)}.#{extension}"
+        path        = File.join(notes_dir, filename)
 
-        unless File.exist?(path)
-          File.open(path, 'w') do |f|
-            if extension == "md"
-              f.puts "# #{title}"
-            elsif extension == "org"
-              f.puts "#+TITLE: #{title}"
-            end
-          end
-          puts "Created: #{path}"
+        if nb_support
+          system("nb new \"#{title}\"")
+          puts "Created via nb: #{path}"
         else
-          puts "Note already exists: #{path}"
+          unless File.exist?(path)
+            File.open(path, 'w') do |f|
+              if extension == "md"
+                f.puts "# #{title}"
+              elsif extension == "org"
+                f.puts "+TITLE: #{title}"
+              end
+            end
+            puts "Created: #{path}"
+          else
+            puts "Note already exists: #{path}"
+          end
         end
 
         path
@@ -59,10 +65,9 @@ module CielagoNote
 
       def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
         exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
-        hidden_flag = hide_hidden ? "" : "--hidden"
-        rg_command = "rg --files #{hidden_flag} #{exclude_patterns} #{notes_dir}"
-        rg_output = `#{rg_command}`
-        rg_output.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
+        hidden_flag      = hide_hidden ? "" : "--hidden"
+        rg_command       = "rg --files #{hidden_flag} #{exclude_patterns} #{notes_dir}"
+        `#{rg_command}`.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
       end
 
       def self.edit_with_cleanup(editor_command, path)
@@ -72,7 +77,6 @@ module CielagoNote
       # --- MAIN LOOP ---
       loop do
         files = load_notes(notes_dir, exclude_dirs, hide_hidden)
-
         fzf_command = [
           'fzf',
           '--prompt=Search or create: ',
@@ -92,56 +96,34 @@ module CielagoNote
                               fzf.read
                             end
 
-                            if selected.nil? || selected.strip.empty?
-                              puts "No input given. Exiting."
-                              break
-                            end
+                            break if selected.nil? || selected.strip.empty?
 
                             lines = selected.lines.map(&:chomp)
-
                             if lines.length >= 3
-                              query = lines[0]
-                              key = lines[1]
-                              selection = lines[2]
+                              query, key, selection = lines[0], lines[1], lines[2]
                             elsif lines.length == 2
-                              query = lines[0]
-                              key = lines[1]
-                              selection = ""
+                              query, key, selection = lines[0], lines[1], ""
                             else
-                              query = ""
-                              key = lines[0] || ""
-                              selection = ""
+                              query, key, selection = "", lines[0] || "", ""
                             end
-
-                            query.strip!
-                            key.strip!
-                            selection.strip!
-
-                            puts "DEBUG:"
-                            puts "Key: #{key.inspect}"
-                            puts "Query: #{query.inspect}"
-                            puts "Selection: #{selection.inspect}"
-                            puts "------"
+                            query.strip!; key.strip!; selection.strip!
 
                             case key
                             when 'ctrl-n'
-                              path = create_note(notes_dir, query, default_extension)
-                              edit_with_cleanup(editor, path)
+                              path = create_note(notes_dir, query, default_extension, nb_support, editor_cmd)
+                              edit_with_cleanup(editor_cmd, path)
 
                             when 'enter'
-                              if selection.start_with?("[+] Create new note")
-                                path = create_note(notes_dir, query, default_extension)
-                                edit_with_cleanup(editor, path)
+                              if selection.start_with?('[+]') || (!query.empty? && selection.empty?)
+                                path = create_note(notes_dir, query, default_extension, nb_support, editor_cmd)
+                                edit_with_cleanup(editor_cmd, path)
                               elsif !selection.empty?
                                 full_path = File.join(notes_dir, selection)
                                 if File.exist?(full_path)
-                                  edit_with_cleanup(editor, full_path)
+                                  edit_with_cleanup(editor_cmd, full_path)
                                 else
                                   puts "Selected file does not exist. Aborting."
                                 end
-                              elsif !query.empty?
-                                path = create_note(notes_dir, query, default_extension)
-                                edit_with_cleanup(editor, path)
                               else
                                 puts "No valid action. Exiting."
                                 break
@@ -154,8 +136,13 @@ module CielagoNote
                                   print "Delete #{selection}? (y/n): "
                                   answer = STDIN.gets.chomp.downcase
                                   if answer == 'y'
-                                    File.delete(full_path)
-                                    puts "Deleted."
+                                    if nb_support
+                                      system("nb delete \"#{full_path}\"")
+                                      puts "Deleted via nb: #{selection}"
+                                    else
+                                      File.delete(full_path)
+                                      puts "Deleted: #{selection}"
+                                    end
                                   else
                                     puts "Cancelled."
                                   end
@@ -170,16 +157,26 @@ module CielagoNote
                               if !selection.empty?
                                 full_path = File.join(notes_dir, selection)
                                 if File.exist?(full_path)
-                                  print "Rename #{selection} to (new name): [#{selection}] "
-                                  input = STDIN.gets.chomp
-                                  new_name = input.empty? ? selection : input
-                                  new_path = File.join(notes_dir, new_name)
+                                  # restore terminal to cooked + echo mode
+                                  system("stty sane")
 
-                                  if File.exist?(new_path)
+                                  print "Rename #{selection} to (new name): [#{selection}] "
+                                  input    = STDIN.gets.chomp
+                                  new_name = input.empty? ? selection : input
+
+                                  if File.exist?(File.join(notes_dir, new_name))
                                     puts "File #{new_name} already exists. Aborting."
                                   else
-                                    FileUtils.mv(full_path, new_path)
-                                    puts "Renamed to #{new_name}"
+                                    if nb_support
+                                      # do in-place rename via nb
+                                      Dir.chdir(notes_dir) do
+                                        system("nb rename \"#{selection}\" \"#{new_name}\"")
+                                      end
+                                      puts "Renamed via nb: #{selection} → #{new_name}"
+                                    else
+                                      FileUtils.mv(full_path, File.join(notes_dir, new_name))
+                                      puts "Renamed: #{selection} → #{new_name}"
+                                    end
                                   end
                                 else
                                   puts "Selected file does not exist. Aborting."
@@ -188,14 +185,16 @@ module CielagoNote
                                 puts "No note selected for renaming."
                               end
 
+
+
                             when 'ctrl-c'
                               if !selection.empty?
                                 full_path = File.join(notes_dir, selection)
                                 if File.exist?(full_path)
-                                  if RUBY_PLATFORM.include?("darwin")
+                                  if RUBY_PLATFORM.include?('darwin')
                                     system("cat \"#{full_path}\" | pbcopy")
                                     puts "Copied to clipboard."
-                                  elsif RUBY_PLATFORM.include?("linux")
+                                  elsif RUBY_PLATFORM.include?('linux')
                                     system("cat \"#{full_path}\" | xclip -selection clipboard")
                                     puts "Copied to clipboard."
                                   else
@@ -210,24 +209,29 @@ module CielagoNote
 
                             when 'ctrl-t'
                               daily_file = today_filename(default_extension)
-                              path = File.join(notes_dir, daily_file)
+                              path       = File.join(notes_dir, daily_file)
                               unless File.exist?(path)
-                                File.open(path, 'w') do |f|
-                                  if default_extension == "md"
-                                    f.puts "# Daily - #{Date.today.strftime("%Y-%m-%d")}"
-                                  elsif default_extension == "org"
-                                    f.puts "#+TITLE: Daily - #{Date.today.strftime("%Y-%m-%d")}"
+                                if nb_support
+                                  system("nb new \"Daily - #{Date.today.strftime('%Y-%m-%d')}\"")
+                                  puts "Created daily note via nb: #{path}"
+                                else
+                                  File.open(path, 'w') do |f|
+                                    if default_extension == 'md'
+                                      f.puts "# Daily - #{Date.today.strftime('%Y-%m-%d')}"
+                                    elsif default_extension == 'org'
+                                      f.puts "+TITLE: Daily - #{Date.today.strftime('%Y-%m-%d')}"
+                                    end
                                   end
+                                  puts "Created daily note: #{path}"
                                 end
-                                puts "Created daily note: #{path}"
                               end
-                              edit_with_cleanup(editor, path)
+                              edit_with_cleanup(editor_cmd, path)
 
                             else
                               puts "No valid action. Exiting."
                               break
                             end
-                            end # end loop
-                            end # end self.start
-                            end # end CLI class
-                            end # end module
+                            end
+                            end # start
+                            end # CLI
+                            end # module
