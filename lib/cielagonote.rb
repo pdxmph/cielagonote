@@ -33,45 +33,40 @@ module CielagoNote
         text.downcase.strip.gsub(/[^\w\s-]/, '').gsub(/\s+/, '-')
       end
 
-      def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
-        # figure out if this is our “Daily” note
-        is_daily = title.strip.start_with?("Daily")
-        # slugify the title (e.g. “Daily – 2025-05-01” → “daily-2025-05-01”)
-        slug     = slugify(title)
+   def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
+  # build the slug and filename
+  slug     = slugify(title)
+  prefix   = Date.today.strftime("%Y-%m-%d")
+  filename = "#{prefix}-#{slug}.#{extension}"
+  path     = File.join(notes_dir, filename)
 
-        # choose filename: daily notes get only the slug,
-        # everything else gets “YYYY-MM-DD-slug”
-        filename = if is_daily
-          "#{slug}.#{extension}"
-        else
-          "#{Date.today.strftime('%Y-%m-%d')}-#{slug}.#{extension}"
-        end
-
-        path = File.join(notes_dir, filename)
-
-        if nb_support
-          # let nb create it (with its own internal slug rules);
-          # it will create exactly the same path if slugify matches nb’s rules
-          system("nb new \"#{title}\"")
-          puts "Created via nb: #{path}"
-        else
-          # our old “touch + header” logic
-          unless File.exist?(path)
-            File.open(path, 'w') do |f|
-              if extension == "md"
-                f.puts "# #{title}"
-              elsif extension == "org"
-                f.puts "#+TITLE: #{title}"
-              end
-            end
-            puts "Created: #{path}"
-          else
-            puts "Note already exists: #{path}"
-          end
-        end
-
-        path
+  # 1) CREATE the file yourself if it doesn’t already exist
+  unless File.exist?(path)
+    File.open(path, 'w') do |f|
+      if extension == "md"
+        f.puts "# #{title}"
+      elsif extension == "org"
+        f.puts "#+TITLE: #{title}"
       end
+    end
+    puts "Created: #{path}"
+  else
+    puts "Note already exists: #{path}"
+  end
+
+  # 2) OPEN it in nb (to get auto-git commits, indexing, etc.) or in your editor
+  if nb_support
+    Dir.chdir(notes_dir) do
+      system("nb edit \"#{filename}\"")
+    end
+  else
+    system("#{editor_cmd} \"#{path}\"")
+  end
+
+  path
+end
+
+
 
 
       def self.today_filename(extension)

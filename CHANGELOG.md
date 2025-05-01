@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [0.6] - 2025-05-01
+
+Fixes a regression in nb file creation. 
+
 ## [0.5] - 2025-05-01
 
 ### Changed
