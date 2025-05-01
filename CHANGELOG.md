@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [0.5] - 2025-05-01
+
+### Changed
+- Making a daily note with `^t` creates a specific daily file: `daily-yyyy-mm-dd.ext`. That is at odds with the nb daily plugin convention. For simplicity's sake, cielagonote uses its own format regardless of your `nb_support:` setting in `~/.cnconfig.yml`
+
 ## [0.4] - 2025-05-01
 
 ### Added 

@@ -22,6 +22,7 @@ This started as something to manage nb notes a little more quickly, but took a t
 - With nb support enabled: 
   - rename, deletion, and creation all go through nb commands
   - your editor preference is overrideden in favor of your `nb` editor setting
+- There is a daily plugin for nb that I chose to ignore in favor of creating a daily note and editing it with nb_support on _or_ off. If you aren't a fan of that approach, don't use the `^t` option to make a daily note and just manage those from the command line nb interface: nb's `daily` plugin just wants a line of text to log. 
 
 This all seems to work just fine, but it's preliminary support so you should pay attention to the first few outcomes. 
 

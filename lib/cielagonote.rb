@@ -34,20 +34,34 @@ module CielagoNote
       end
 
       def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
-        date_prefix = Date.today.strftime("%Y-%m-%d")
-        filename    = "#{date_prefix}-#{slugify(title)}.#{extension}"
-        path        = File.join(notes_dir, filename)
+        # figure out if this is our “Daily” note
+        is_daily = title.strip.start_with?("Daily")
+        # slugify the title (e.g. “Daily – 2025-05-01” → “daily-2025-05-01”)
+        slug     = slugify(title)
+
+        # choose filename: daily notes get only the slug,
+        # everything else gets “YYYY-MM-DD-slug”
+        filename = if is_daily
+          "#{slug}.#{extension}"
+        else
+          "#{Date.today.strftime('%Y-%m-%d')}-#{slug}.#{extension}"
+        end
+
+        path = File.join(notes_dir, filename)
 
         if nb_support
+          # let nb create it (with its own internal slug rules);
+          # it will create exactly the same path if slugify matches nb’s rules
           system("nb new \"#{title}\"")
           puts "Created via nb: #{path}"
         else
+          # our old “touch + header” logic
           unless File.exist?(path)
             File.open(path, 'w') do |f|
               if extension == "md"
                 f.puts "# #{title}"
               elsif extension == "org"
-                f.puts "+TITLE: #{title}"
+                f.puts "#+TITLE: #{title}"
               end
             end
             puts "Created: #{path}"
@@ -58,6 +72,7 @@ module CielagoNote
 
         path
       end
+
 
       def self.today_filename(extension)
         "daily-#{Date.today.strftime("%Y-%m-%d")}.#{extension}"
@@ -207,25 +222,26 @@ module CielagoNote
                                 puts "No note selected to copy."
                               end
 
+
                             when 'ctrl-t'
-                              daily_file = today_filename(default_extension)
-                              path       = File.join(notes_dir, daily_file)
-                              unless File.exist?(path)
-                                if nb_support
-                                  system("nb new \"Daily - #{Date.today.strftime('%Y-%m-%d')}\"")
-                                  puts "Created daily note via nb: #{path}"
-                                else
-                                  File.open(path, 'w') do |f|
-                                    if default_extension == 'md'
-                                      f.puts "# Daily - #{Date.today.strftime('%Y-%m-%d')}"
-                                    elsif default_extension == 'org'
-                                      f.puts "+TITLE: Daily - #{Date.today.strftime('%Y-%m-%d')}"
-                                    end
-                                  end
-                                  puts "Created daily note: #{path}"
-                                end
-                              end
+                              # restore TTY so gets/echo work
+                              system("stty sane")
+
+                              # build a “Daily – YYYY-MM-DD” title
+                              title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
+
+                              # this will now create/open daily-YYYY-MM-DD.ext in both modes
+                              path = create_note(
+                                notes_dir,
+                                title,
+                                default_extension,
+                                nb_support,
+                                editor_cmd
+                              )
+
                               edit_with_cleanup(editor_cmd, path)
+
+
 
                             else
                               puts "No valid action. Exiting."
