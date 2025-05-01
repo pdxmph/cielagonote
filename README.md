@@ -1,6 +1,6 @@
 **CielagoNote** is a quick little thing to build a Notational Velocity-style TUI app on top of some common shell tools. 
 
-It's built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled notes, but you can use it on its own with any old editor. 
+It was origiinally built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled notes, but you can use it on its own with any old editor and should look at the "Warnings" below before using it that way. 
 
 ---
 
@@ -13,9 +13,18 @@ It's built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled n
 - Clean previews with [`bat`](https://github.com/sharkdp/bat)
 - Daily notes: `C-t` to either make or jump to a daily note. 
 
+## Warnings
+
+This started as something to manage nb notes a little more quickly, but has taken a turn:
+
+- There's a fuzzy search plugin for nb that works fine and keeps you in complete alignment with nb if that's what you want. 
+- This doesn't use nb to do the file management parts I've added (delete, rename)
+- You can still set the editor command to `nb edit`, which means your edits will be synced. 
+- I'm considering making an "nb-clean" version where you can configure `nb: true` and get nb's native remove and rename functionality, which will ensure sync operations happen, etc. 
+
 ---
 
-##  Requirements
+## Requirements
 
 
 - [Ruby](https://www.ruby-lang.org/) 
@@ -50,7 +59,7 @@ It's built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled n
 |C-t | Create or jump to daily-yyyy-mm-dd.ext|
 |C-q | Quit|
 
-##  Configuration
+## Configuration
 
 Example `~/.cnconfig.yml`
 
@@ -65,7 +74,7 @@ editor: nb edit
 
 ```
 
-## Why? 
+## Why?
 
 I mean, "because."
 

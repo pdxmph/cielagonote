@@ -66,7 +66,7 @@ module CielagoNote
       end
 
       def self.edit_with_cleanup(editor_command, path)
-        system("#{editor_command} \"#{path}\"; reset")
+        system("#{editor_command} \"#{path}\"")
       end
 
       # --- MAIN LOOP ---
@@ -80,154 +80,154 @@ module CielagoNote
           '--print-query',
           '--expect=enter,ctrl-n,ctrl-d,ctrl-r,ctrl-c,ctrl-t',
           '--preview', %Q{([[ -f #{notes_dir}/{} ]] && bat --style=numbers --color=always #{notes_dir}/{} || echo "No preview available")},
-          '--preview-window', 'right:70%:wrap',
-          '--header', "\e[1m(n)\e[0mew, \e[1m(d)\e[0mel, \e[1m(c)\e[0mopy, \e[1m(r)\e[0mename, \e[1m(t)\e[0moday, \e[1m(enter)\e[0m edit",
-          '--color', 'header:italic:underline,fg+:bright-white,bg+:black,fg:gray'
-        ]
+                              '--preview-window', 'right:70%:wrap',
+                              '--header', "\e[1m(n)\e[0mew, \e[1m(d)\e[0mel, \e[1m(c)\e[0mopy, \e[1m(r)\e[0mename, \e[1m(t)\e[0moday, \e[1m(enter)\e[0m edit",
+                              '--color', 'header:italic:underline,fg+:bright-white,bg+:black,fg:gray'
+                              ]
 
-        selected = IO.popen(fzf_command, 'r+') do |fzf|
-          files.each { |file| fzf.puts(file) }
-          fzf.puts "[+] Create new note: {q}"
-          fzf.close_write
-          fzf.read
-        end
+                            selected = IO.popen(fzf_command, 'r+') do |fzf|
+                              files.each { |file| fzf.puts(file) }
+                              fzf.puts "[+] Create new note: {q}"
+                              fzf.close_write
+                              fzf.read
+                            end
 
-        if selected.nil? || selected.strip.empty?
-          puts "No input given. Exiting."
-          break
-        end
+                            if selected.nil? || selected.strip.empty?
+                              puts "No input given. Exiting."
+                              break
+                            end
 
-        lines = selected.lines.map(&:chomp)
+                            lines = selected.lines.map(&:chomp)
 
-        if lines.length >= 3
-          query = lines[0]
-          key = lines[1]
-          selection = lines[2]
-        elsif lines.length == 2
-          query = lines[0]
-          key = lines[1]
-          selection = ""
-        else
-          query = ""
-          key = lines[0] || ""
-          selection = ""
-        end
+                            if lines.length >= 3
+                              query = lines[0]
+                              key = lines[1]
+                              selection = lines[2]
+                            elsif lines.length == 2
+                              query = lines[0]
+                              key = lines[1]
+                              selection = ""
+                            else
+                              query = ""
+                              key = lines[0] || ""
+                              selection = ""
+                            end
 
-        query.strip!
-        key.strip!
-        selection.strip!
+                            query.strip!
+                            key.strip!
+                            selection.strip!
 
-        puts "DEBUG:"
-        puts "Key: #{key.inspect}"
-        puts "Query: #{query.inspect}"
-        puts "Selection: #{selection.inspect}"
-        puts "------"
+                            puts "DEBUG:"
+                            puts "Key: #{key.inspect}"
+                            puts "Query: #{query.inspect}"
+                            puts "Selection: #{selection.inspect}"
+                            puts "------"
 
-        case key
-        when 'ctrl-n'
-          path = create_note(notes_dir, query, default_extension)
-          edit_with_cleanup(editor, path)
+                            case key
+                            when 'ctrl-n'
+                              path = create_note(notes_dir, query, default_extension)
+                              edit_with_cleanup(editor, path)
 
-        when 'enter'
-          if selection.start_with?("[+] Create new note")
-            path = create_note(notes_dir, query, default_extension)
-            edit_with_cleanup(editor, path)
-          elsif !selection.empty?
-            full_path = File.join(notes_dir, selection)
-            if File.exist?(full_path)
-              edit_with_cleanup(editor, full_path)
-            else
-              puts "Selected file does not exist. Aborting."
-            end
-          elsif !query.empty?
-            path = create_note(notes_dir, query, default_extension)
-            edit_with_cleanup(editor, path)
-          else
-            puts "No valid action. Exiting."
-            break
-          end
+                            when 'enter'
+                              if selection.start_with?("[+] Create new note")
+                                path = create_note(notes_dir, query, default_extension)
+                                edit_with_cleanup(editor, path)
+                              elsif !selection.empty?
+                                full_path = File.join(notes_dir, selection)
+                                if File.exist?(full_path)
+                                  edit_with_cleanup(editor, full_path)
+                                else
+                                  puts "Selected file does not exist. Aborting."
+                                end
+                              elsif !query.empty?
+                                path = create_note(notes_dir, query, default_extension)
+                                edit_with_cleanup(editor, path)
+                              else
+                                puts "No valid action. Exiting."
+                                break
+                              end
 
-        when 'ctrl-d'
-          if !selection.empty?
-            full_path = File.join(notes_dir, selection)
-            if File.exist?(full_path)
-              print "Delete #{selection}? (y/n): "
-              answer = STDIN.gets.chomp.downcase
-              if answer == 'y'
-                File.delete(full_path)
-                puts "Deleted."
-              else
-                puts "Cancelled."
-              end
-            else
-              puts "Selected file does not exist. Aborting."
-            end
-          else
-            puts "No note selected for deletion."
-          end
+                            when 'ctrl-d'
+                              if !selection.empty?
+                                full_path = File.join(notes_dir, selection)
+                                if File.exist?(full_path)
+                                  print "Delete #{selection}? (y/n): "
+                                  answer = STDIN.gets.chomp.downcase
+                                  if answer == 'y'
+                                    File.delete(full_path)
+                                    puts "Deleted."
+                                  else
+                                    puts "Cancelled."
+                                  end
+                                else
+                                  puts "Selected file does not exist. Aborting."
+                                end
+                              else
+                                puts "No note selected for deletion."
+                              end
 
-        when 'ctrl-r'
-          if !selection.empty?
-            full_path = File.join(notes_dir, selection)
-            if File.exist?(full_path)
-              print "Rename #{selection} to (new name): [#{selection}] "
-              input = STDIN.gets.chomp
-              new_name = input.empty? ? selection : input
-              new_path = File.join(notes_dir, new_name)
+                            when 'ctrl-r'
+                              if !selection.empty?
+                                full_path = File.join(notes_dir, selection)
+                                if File.exist?(full_path)
+                                  print "Rename #{selection} to (new name): [#{selection}] "
+                                  input = STDIN.gets.chomp
+                                  new_name = input.empty? ? selection : input
+                                  new_path = File.join(notes_dir, new_name)
 
-              if File.exist?(new_path)
-                puts "File #{new_name} already exists. Aborting."
-              else
-                FileUtils.mv(full_path, new_path)
-                puts "Renamed to #{new_name}"
-              end
-            else
-              puts "Selected file does not exist. Aborting."
-            end
-          else
-            puts "No note selected for renaming."
-          end
+                                  if File.exist?(new_path)
+                                    puts "File #{new_name} already exists. Aborting."
+                                  else
+                                    FileUtils.mv(full_path, new_path)
+                                    puts "Renamed to #{new_name}"
+                                  end
+                                else
+                                  puts "Selected file does not exist. Aborting."
+                                end
+                              else
+                                puts "No note selected for renaming."
+                              end
 
-        when 'ctrl-c'
-          if !selection.empty?
-            full_path = File.join(notes_dir, selection)
-            if File.exist?(full_path)
-              if RUBY_PLATFORM.include?("darwin")
-                system("cat \"#{full_path}\" | pbcopy")
-                puts "Copied to clipboard."
-              elsif RUBY_PLATFORM.include?("linux")
-                system("cat \"#{full_path}\" | xclip -selection clipboard")
-                puts "Copied to clipboard."
-              else
-                puts "Clipboard copy not supported on this platform."
-              end
-            else
-              puts "Selected file does not exist. Aborting."
-            end
-          else
-            puts "No note selected to copy."
-          end
+                            when 'ctrl-c'
+                              if !selection.empty?
+                                full_path = File.join(notes_dir, selection)
+                                if File.exist?(full_path)
+                                  if RUBY_PLATFORM.include?("darwin")
+                                    system("cat \"#{full_path}\" | pbcopy")
+                                    puts "Copied to clipboard."
+                                  elsif RUBY_PLATFORM.include?("linux")
+                                    system("cat \"#{full_path}\" | xclip -selection clipboard")
+                                    puts "Copied to clipboard."
+                                  else
+                                    puts "Clipboard copy not supported on this platform."
+                                  end
+                                else
+                                  puts "Selected file does not exist. Aborting."
+                                end
+                              else
+                                puts "No note selected to copy."
+                              end
 
-        when 'ctrl-t'
-          daily_file = today_filename(default_extension)
-          path = File.join(notes_dir, daily_file)
-          unless File.exist?(path)
-            File.open(path, 'w') do |f|
-              if default_extension == "md"
-                f.puts "# Daily - #{Date.today.strftime("%Y-%m-%d")}"
-              elsif default_extension == "org"
-                f.puts "#+TITLE: Daily - #{Date.today.strftime("%Y-%m-%d")}"
-              end
-            end
-            puts "Created daily note: #{path}"
-          end
-          edit_with_cleanup(editor, path)
+                            when 'ctrl-t'
+                              daily_file = today_filename(default_extension)
+                              path = File.join(notes_dir, daily_file)
+                              unless File.exist?(path)
+                                File.open(path, 'w') do |f|
+                                  if default_extension == "md"
+                                    f.puts "# Daily - #{Date.today.strftime("%Y-%m-%d")}"
+                                  elsif default_extension == "org"
+                                    f.puts "#+TITLE: Daily - #{Date.today.strftime("%Y-%m-%d")}"
+                                  end
+                                end
+                                puts "Created daily note: #{path}"
+                              end
+                              edit_with_cleanup(editor, path)
 
-        else
-          puts "No valid action. Exiting."
-          break
-        end
-      end # end loop
-    end # end self.start
-  end # end CLI class
-end # end module
+                            else
+                              puts "No valid action. Exiting."
+                              break
+                            end
+                            end # end loop
+                            end # end self.start
+                            end # end CLI class
+                            end # end module
