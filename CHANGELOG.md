@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [0.8] - 
+
+- Removing confirm dialog from deletion when nb_support is true: nb will ask anyhow
+
 ## [0.7] - 2025-05-01
 
 Fixes a regression in nb file creation. 

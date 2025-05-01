@@ -33,38 +33,38 @@ module CielagoNote
         text.downcase.strip.gsub(/[^\w\s-]/, '').gsub(/\s+/, '-')
       end
 
-   def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
-  # build the slug and filename
-  slug     = slugify(title)
-  prefix   = Date.today.strftime("%Y-%m-%d")
-  filename = "#{prefix}-#{slug}.#{extension}"
-  path     = File.join(notes_dir, filename)
+      def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
+        # build the slug and filename
+        slug     = slugify(title)
+        prefix   = Date.today.strftime("%Y-%m-%d")
+        filename = "#{prefix}-#{slug}.#{extension}"
+        path     = File.join(notes_dir, filename)
 
-  # 1) CREATE the file yourself if it doesn’t already exist
-  unless File.exist?(path)
-    File.open(path, 'w') do |f|
-      if extension == "md"
-        f.puts "# #{title}"
-      elsif extension == "org"
-        f.puts "#+TITLE: #{title}"
+        # 1) CREATE the file yourself if it doesn’t already exist
+        unless File.exist?(path)
+          File.open(path, 'w') do |f|
+            if extension == "md"
+              f.puts "# #{title}"
+            elsif extension == "org"
+              f.puts "#+TITLE: #{title}"
+            end
+          end
+          puts "Created: #{path}"
+        else
+          puts "Note already exists: #{path}"
+        end
+
+        # 2) OPEN it in nb (to get auto-git commits, indexing, etc.) or in your editor
+        if nb_support
+          Dir.chdir(notes_dir) do
+            system("nb edit \"#{filename}\"")
+          end
+        else
+          system("#{editor_cmd} \"#{path}\"")
+        end
+
+        path
       end
-    end
-    puts "Created: #{path}"
-  else
-    puts "Note already exists: #{path}"
-  end
-
-  # 2) OPEN it in nb (to get auto-git commits, indexing, etc.) or in your editor
-  if nb_support
-    Dir.chdir(notes_dir) do
-      system("nb edit \"#{filename}\"")
-    end
-  else
-    system("#{editor_cmd} \"#{path}\"")
-  end
-
-  path
-end
 
 
 
@@ -140,27 +140,30 @@ end
                               end
 
                             when 'ctrl-d'
-                              if !selection.empty?
+                              if selection.empty?
+                                puts "No note selected for deletion."
+                              else
                                 full_path = File.join(notes_dir, selection)
-                                if File.exist?(full_path)
-                                  print "Delete #{selection}? (y/n): "
-                                  answer = STDIN.gets.chomp.downcase
-                                  if answer == 'y'
-                                    if nb_support
-                                      system("nb delete \"#{full_path}\"")
-                                      puts "Deleted via nb: #{selection}"
-                                    else
-                                      File.delete(full_path)
-                                      puts "Deleted: #{selection}"
+                                if !File.exist?(full_path)
+                                  puts "Selected file does not exist. Aborting."
+                                else
+                                  if nb_support
+                                    # let `nb delete` handle its own confirmation prompt
+                                    Dir.chdir(notes_dir) do
+                                      system("nb delete \"#{selection}\"")
                                     end
                                   else
-                                    puts "Cancelled."
+                                    # manual confirmation for non-nb mode
+                                    print "Delete #{selection}? (y/n): "
+                                    answer = STDIN.gets.chomp.downcase
+                                    if answer == 'y'
+                                      File.delete(full_path)
+                                      puts "Deleted: #{selection}"
+                                    else
+                                      puts "Cancelled."
+                                    end
                                   end
-                                else
-                                  puts "Selected file does not exist. Aborting."
                                 end
-                              else
-                                puts "No note selected for deletion."
                               end
 
                             when 'ctrl-r'
