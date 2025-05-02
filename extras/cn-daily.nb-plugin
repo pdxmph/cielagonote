@@ -1,51 +1,36 @@
 #!/usr/bin/env bash
 ###############################################################################
-# daily.nb-plugin
+# cn-daily.nb-plugin
 #
-# Write to a daily log using the same format as cn. Forked from the nb project's 
-# daily plugin
+# Write to a daily log using a format expected by cielagonote:
+# https://github.com/pdxmph/cielagonote
 #
-#   nb plugin install https://github.com/pdxmph/cielagonote/main/extras/cn-daily.nb-plugin
+# Install with:
+#   nb plugin install https://github.com/pdxmph/cielagonote/blob/main/extras/cn-daily.nb-plugin
 #
-# A plugin for `nb`.
-#   https://github.com/xwmx/nb
 ###############################################################################
 
-set -euo pipefail
+# Register the "daily" subcommand.
+_subcommands add "daily"
 
-# Register the "daily" subcommand
-typed_subcmd="daily"
-_subcommands add "${typed_subcmd}"
-
-# Help/usage text
-_subcommands describe "${typed_subcmd}" <<HEREDOC
+# Help / usage text.
+_subcommands describe "daily" <<HEREDOC
 $(_color_primary "Usage"):
-  ${_ME} ${typed_subcmd} [<content>] [--prev [<number>]]
+  ${_ME} daily [<content>] [--prev [<number>]]
 
 $(_color_primary "Options"):
-  --prev [<number>]   List previous days and show day by previous <number>.
+  --prev [<number>]   List previous days and open day by that index.
 
 $(_color_primary "Description"):
-  Add notes to a daily log. When called without arguments, the current day's
-  log is displayed. When passed \`<content>\`, a new timestamped entry is added
-  to the current day's log, which is created if it doesn't yet exist.
-
-  Previous day's logs can be listed with the \`--prev\` option. View a previous
-  day's log by passing its \`<number>\` in the list.
-
-$(_color_primary "Examples"):
-  ${_ME} ${typed_subcmd} "Example note content."
-  ${_ME} ${typed_subcmd}
-  ${_ME} ${typed_subcmd} --prev
-  ${_ME} ${typed_subcmd} --prev 3
+  Add notes to a daily log. No args → show today's file (or prompt).
+  With content → append a "## [HH:MM:SS]  CONTENT" entry (with blank line).
+  --prev → list past files as [0]=today, [1]=yesterday, etc.
+  --prev N → open the Nᵗʰ entry in that list.
 HEREDOC
 
-# Main function for the "daily" subcommand
+# Main handler
 _daily() {
-  # Collect arguments
-  local _content=("${@:-}")
-
-  # Helper to show a file
+  # Show a file
   _daily_show() {
     local path="$1"
     [[ -n "$path" ]] || return 1
@@ -53,83 +38,63 @@ _daily() {
     _show "$path" --print
   }
 
-  # Notebook path and dates
-  local nb_root date_compact date_human timestamp
-  nb_root="$(_notebooks current --path)"
-  date_compact=$(date +%Y-%m-%d)
-  date_human=$(date +%Y-%m-%d)
-  timestamp=$(date +%H:%M:%S)
+  local _content=( "$@" )
+  local _notebook_path="$(_notebooks current --path)"
+  local _today_fn="daily-$(date '+%Y-%m-%d').md"
+  local _today_path="${_notebook_path}/${_today_fn}"
 
-  # Target file
-  local filename="daily-${date_compact}.md"
-  local target_path="${nb_root}/${filename}"
-
-  # No args: view or prompt
-  if [[ -z "${_content[*]:-}" ]]; then
-    if [[ ! -e "$target_path" ]]; then
-      printf "Add the first note of the day: %s ${typed_subcmd} <content>\n" "${_ME}"
+  # 1) No args → show (or prompt) today's file
+  if [[ -z "${_content[*]}" ]]; then
+    if [[ ! -e "$_today_path" ]]; then
+      printf "Add the first note of the day: %s daily <content>\n" "${_ME}"
     else
-      _daily_show "$target_path"
+      _daily_show "$_today_path"
     fi
     return 0
   fi
 
-  # Handle --prev flag
-  if _contains "${_content[0]}" --all --ago --day --days --prev --previous; then
-    local note_paths=()
-    IFS=$'\n' read -r -d '' -a note_paths < <(
-      find "$nb_root" -maxdepth 1 -type f -name "daily-???????.md" | sort && printf '\0'
-    )
-    if (( ${#note_paths[@]} == 0 )); then
-      printf "Add the first daily note: %s ${typed_subcmd} <content>\n" "${_ME}"
+  # 2) --prev branch
+  if _contains "${_content[0]}" "--prev" "--all" "--ago" "--day" "--days" "--previous"; then
+    # gather only real files
+    mapfile -t files < <(compgen -G "${_notebook_path}/daily-????-??-??.md")
+
+    # nothing yet?
+    if (( ${#files[@]} == 0 )); then
+      printf "Add the first daily note: %s daily <content>\n" "${_ME}"
       return 0
     fi
+
+    # sort ascending (oldest → newest)
+    IFS=$'\n' files=( $(printf '%s\n' "${files[@]}" | sort) ); unset IFS
+
+    # 2a) numeric arg? open that exact indexed day
     if [[ "${_content[1]:-}" =~ ^[0-9]+$ ]]; then
-      local idx=$(( _content[1] + 1 ))
-      if (( idx > ${#note_paths[@]} )); then
+      local rel_idx="${_content[1]}"
+      local arr_idx=$(( ${#files[@]} - 1 - rel_idx ))
+      if (( arr_idx < 0 )); then
         _exit_1 printf "Not found.\n"
       fi
-      _daily_show "${note_paths[-$idx]}"
-    else
-      local i=${#note_paths[@]}
-      for p in "${note_paths[@]}"; do
-        i=$((i-1))
-        _list "$p" --no-color | while IFS= read -r line; do
-          printf "%s %s\n" "$(_color_brackets "$i")" "$line"
-        done
-      done
+      _daily_show "${files[arr_idx]}"
+      return 0
     fi
+
+    # 2b) list them: [0]=today, [1]=yesterday, …
+    for (( rel_idx=0; rel_idx<${#files[@]}; rel_idx++ )); do
+      local arr_idx=$(( ${#files[@]} - 1 - rel_idx ))
+      local prefix=$(_color_brackets "$rel_idx")
+      _list "${files[arr_idx]}" --no-color | sed "s/^/${prefix} /"
+    done
     return 0
   fi
 
-  # Build content text
-  local content_text
-  content_text="$(_join ' ' "${_content[@]}")"
+  # 3) default: append a new entry (blank line + L2 heading)
+  local ts="$(date '+%H:%M:%S')"
+  local body="$(_join ' ' "${_content[@]}")"
+  local entry="$(printf '\n## [%s]  %s' "$ts" "$body")"
 
-  # Create first entry or append new entries
-  if [[ ! -e "$target_path" ]]; then
-    # Create with header + first entry
-    local initial
-    initial=$(cat <<EOF
-# Daily Note - ${date_human}
-
-## [${timestamp}]
-${content_text}
-EOF
-)
-    _add --content "$initial" --filename "$filename"
+  if [[ ! -e "$_today_path" ]]; then
+    _add --content "$entry" --filename "$_today_fn"
   else
-    # Append an H2 timestamp block and content
-    local append_text
-    append_text=$(cat <<EOF
-
-## [${timestamp}]
-${content_text}
-EOF
-)
-    _edit "$filename" --append "$append_text"
+    _edit "$_today_fn" --append "$entry"
   fi
 }
-
-# Register subcommand handler
-_subcommands func "${typed_subcmd}" "_daily"
