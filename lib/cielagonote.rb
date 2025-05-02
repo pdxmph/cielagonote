@@ -29,23 +29,36 @@ module CielagoNote
 
       # --- HELPER FUNCTIONS ---
 
+      # normalize and slugify any title
       def self.slugify(text)
-        text.downcase.strip.gsub(/[^\w\s-]/, '').gsub(/\s+/, '-')
+        # 1) normalize Unicode dashes (– — −) to ASCII hyphen
+        normalized = text.tr('–—−', '-')
+        # 2) downcase, strip punctuation except word/space/hyphen, collapse spaces to hyphens
+        normalized
+        .downcase
+        .strip
+        .gsub(/[^\w\s-]/, '')
+        .gsub(/\s+/, '-')
       end
 
-      def self.create_note(notes_dir, title, extension, nb_support, editor_cmd)
-        # build the slug and filename
+      # create (if needed) and open a note, honoring nb_support and special-casing "Daily"
+      # in lib/cielagonote.rb, inside CLI
+      def self.create_note(notes_dir, title, extension)
         slug     = slugify(title)
-        prefix   = Date.today.strftime("%Y-%m-%d")
-        filename = "#{prefix}-#{slug}.#{extension}"
-        path     = File.join(notes_dir, filename)
+        is_daily = title.downcase.start_with?('daily')
 
-        # 1) CREATE the file yourself if it doesn’t already exist
+        filename = if is_daily
+          "#{slug}.#{extension}"
+        else
+          "#{Date.today.strftime('%Y-%m-%d')}-#{slug}.#{extension}"
+        end
+        path = File.join(notes_dir, filename)
+
         unless File.exist?(path)
           File.open(path, 'w') do |f|
-            if extension == "md"
+            if extension == 'md'
               f.puts "# #{title}"
-            elsif extension == "org"
+            elsif extension == 'org'
               f.puts "#+TITLE: #{title}"
             end
           end
@@ -54,24 +67,18 @@ module CielagoNote
           puts "Note already exists: #{path}"
         end
 
-        # 2) OPEN it in nb (to get auto-git commits, indexing, etc.) or in your editor
-        if nb_support
-          Dir.chdir(notes_dir) do
-            system("nb edit \"#{filename}\"")
-          end
-        else
-          system("#{editor_cmd} \"#{path}\"")
-        end
-
         path
       end
 
 
 
 
+
+
       def self.today_filename(extension)
-        "daily-#{Date.today.strftime("%Y-%m-%d")}.#{extension}"
+        "daily-#{Date.today.strftime('%Y-%m-%d')}.#{extension}"
       end
+
 
       def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
         exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
@@ -120,24 +127,28 @@ module CielagoNote
 
                             case key
                             when 'ctrl-n'
-                              path = create_note(notes_dir, query, default_extension, nb_support, editor_cmd)
-                              edit_with_cleanup(editor_cmd, path)
+  system("stty sane")
+  path = create_note(notes_dir, query, default_extension)
+  edit_with_cleanup(editor_cmd, path)
 
-                            when 'enter'
-                              if selection.start_with?('[+]') || (!query.empty? && selection.empty?)
-                                path = create_note(notes_dir, query, default_extension, nb_support, editor_cmd)
-                                edit_with_cleanup(editor_cmd, path)
-                              elsif !selection.empty?
-                                full_path = File.join(notes_dir, selection)
-                                if File.exist?(full_path)
-                                  edit_with_cleanup(editor_cmd, full_path)
-                                else
-                                  puts "Selected file does not exist. Aborting."
-                                end
-                              else
-                                puts "No valid action. Exiting."
-                                break
-                              end
+
+                          when 'enter'
+  if selection.start_with?('[+]') || (!query.empty? && selection.empty?)
+    system("stty sane")
+    path = create_note(notes_dir, query, default_extension)
+    edit_with_cleanup(editor_cmd, path)
+  elsif !selection.empty?
+    full_path = File.join(notes_dir, selection)
+    if File.exist?(full_path)
+      edit_with_cleanup(editor_cmd, full_path)
+    else
+      puts "Selected file does not exist. Aborting."
+    end
+  else
+    puts "No valid action. Exiting."
+    break
+  end
+
 
                             when 'ctrl-d'
                               if selection.empty?
@@ -222,22 +233,11 @@ module CielagoNote
 
 
                             when 'ctrl-t'
-                              # restore TTY so gets/echo work
-                              system("stty sane")
+  system("stty sane")
+  title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
+  path  = create_note(notes_dir, title, default_extension)
+  edit_with_cleanup(editor_cmd, path)
 
-                              # build a “Daily – YYYY-MM-DD” title
-                              title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
-
-                              # this will now create/open daily-YYYY-MM-DD.ext in both modes
-                              path = create_note(
-                                notes_dir,
-                                title,
-                                default_extension,
-                                nb_support,
-                                editor_cmd
-                              )
-
-                              edit_with_cleanup(editor_cmd, path)
 
 
 
