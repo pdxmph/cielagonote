@@ -14,7 +14,8 @@ module CielagoNote
         "exclude_dirs"       => [],
         "editor"             => "vi",
         "hide_hidden"        => false,
-        "nb_support"         => false
+        "nb_support"         => false,
+        "daily_format"       => "cn"
       }
       config_file   = File.expand_path("~/.cnconfig.yml")
       user_config   = File.exist?(config_file) ? YAML.load_file(config_file) : {}
@@ -25,6 +26,7 @@ module CielagoNote
       exclude_dirs      = config["exclude_dirs"]
       hide_hidden       = config["hide_hidden"]
       nb_support        = config["nb_support"]
+      daily_format      = config["daily_format"] || "cn"
       editor_cmd        = nb_support ? "nb edit" : config["editor"]
 
       # --- HELPER FUNCTIONS ---
@@ -256,38 +258,38 @@ module CielagoNote
                               end
 
 
-                            when 'ctrl-t'
-                              # restore the TTY so STDIN/gets works
-                              system("stty sane")
+                          when 'ctrl-t'
+  system("stty sane")
 
-                              # pick the filename according to the mode
-                              if nb_support
-                                # nb’s daily convention: YYYYMMDD.ext
-                                date_str = Date.today.strftime('%Y%m%d')
-                                filename = "#{date_str}.#{default_extension}"
-                              else
-                                # CN’s slug convention: daily-YYYY-MM-DD.ext
-                                date_str = Date.today.strftime('%Y-%m-%d')
-                                filename = "daily-#{date_str}.#{default_extension}"
-                              end
+  if nb_support && daily_format == "nb"
+    # nb’s YYYYMMDD.ext convention
+    today_str = Date.today.strftime("%Y%m%d")
+    fname     = "#{today_str}.#{default_extension}"
+    full      = File.join(notes_dir, fname)
 
-                              full_path = File.join(notes_dir, filename)
+    if File.exist?(full)
+      # file’s already there → open it interactively
+      Dir.chdir(notes_dir) do
+        system("nb edit \"#{fname}\"")
+      end
+    else
+      # first entry of the day → one‐off prompt
+      print "First entry for #{today_str}: "
+      entry = STDIN.gets.chomp
+      Dir.chdir(notes_dir) do
+        system("nb daily \"#{entry}\"")
+      end
+    end
 
-                              # create it by hand if it doesn’t already exist
-                              unless File.exist?(full_path)
-                                File.open(full_path, 'w') do |f|
-                                  if default_extension == 'md'
-                                    f.puts "# Daily #{Date.today.strftime('%Y-%m-%d')}"
-                                  else
-                                    f.puts "#+TITLE: Daily #{Date.today.strftime('%Y-%m-%d')}"
-                                  end
-                                end
-                                puts "Created daily note: #{full_path}"
-                              end
+  else
+    # CielagoNote’s own daily convention in either mode
+    title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
+    path  = create_note(notes_dir, title, default_extension)
+    edit_with_cleanup(editor_cmd, path)
+  end
+end
 
-                              # open with nb edit when in nb_support, or your editor otherwise
-                              edit_with_cleanup(editor_cmd, full_path)
-                            end
+
 
 
 

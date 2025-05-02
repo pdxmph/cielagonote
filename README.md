@@ -32,6 +32,24 @@ One thing to note: in nb_support mode, cielagonote will use the editor you have 
 
 ---
 
+# configuring how daily notes work
+
+If the `daily_format:` setting is `nb`, cielagonote will use nb's `daily` plugin for creating daily notes: `yyyymmdd.ext`.
+
+If the `daily_format:` setting is `cn`, cielagonote will use cn's preferrred approach: `daily-yyyy-mm-dd.ext`
+
+If you'd prefer cielagonote's format but want to keep using nb for everything else, there's a forked daily plugin you can install instead:
+
+`nb plugin install https://github.com/pdxmph/cielagonote/blob/main/extras/cn-daily.nb-plugin`
+
+That version of the daily plugin creates and expect `daily-yyyy-mm-dd.ext` daily files for creation and listing. 
+
+If you press `^t` and there isn't yet a daily note for the current date:
+
+- `daily_format: nb` will drop you into the command line to enter your first entry. Thereafter, `^t` will open the day's note.
+- `daily_format: cn` will create a note if it doesn't exist yet, then drop you into the editor. 
+
+---
 ## standalone use without nb support
 
 Without nb support enabled, cielagonote is more like a CLI Notational Velocity or [deft][], using standard tools to make, edit, delete, or rename notes. Unlike nb's daily plugin, cielagonote prefers a more readable `daily-yyyy-mm-dd.ext` format for daily notes since that's more amenable to fuzzy filename search, and works better for Markdown wiki systems that parse the file for an l1 title heading.
@@ -88,6 +106,7 @@ exclude_dirs:
 hide_hidden: true # hides .files when enabled
 editor: micro # will be overridden with `nb edit` if nb_support == true
 nb_support: false # if true, overrides your editor: setting and enables nb file management
+daily_format: cn # if `nb` daily notes will use the nb format and commands
 ```
 
 ## Why?
