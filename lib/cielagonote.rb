@@ -46,6 +46,24 @@ module CielagoNote
         .gsub(/\A-+|-+\z/, '')
       end
 
+      # returns the full path if a daily file exists, or nil otherwise
+      def self.find_daily_path(notes_dir, extension)
+        date_str_nb   = Date.today.strftime('%Y%m%d')
+        date_str_user = Date.today.strftime('%Y-%m-%d')
+
+        candidates = [
+          "#{date_str_nb}.#{extension}",                # nb’s format
+          "daily-#{date_str_user}.#{extension}"         # your slug format
+        ]
+
+        candidates.each do |fname|
+          full = File.join(notes_dir, fname)
+          return full if File.exist?(full)
+        end
+
+        nil
+      end
+
 
       # create (if needed) and open a note, honoring nb_support and special-casing "Daily"
       # in lib/cielagonote.rb, inside CLI
@@ -239,18 +257,42 @@ module CielagoNote
 
 
                             when 'ctrl-t'
+                              # restore the TTY so STDIN/gets works
                               system("stty sane")
-                              title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
-                              path  = create_note(notes_dir, title, default_extension)
-                              edit_with_cleanup(editor_cmd, path)
 
+                              # pick the filename according to the mode
+                              if nb_support
+                                # nb’s daily convention: YYYYMMDD.ext
+                                date_str = Date.today.strftime('%Y%m%d')
+                                filename = "#{date_str}.#{default_extension}"
+                              else
+                                # CN’s slug convention: daily-YYYY-MM-DD.ext
+                                date_str = Date.today.strftime('%Y-%m-%d')
+                                filename = "daily-#{date_str}.#{default_extension}"
+                              end
 
+                              full_path = File.join(notes_dir, filename)
 
+                              # create it by hand if it doesn’t already exist
+                              unless File.exist?(full_path)
+                                File.open(full_path, 'w') do |f|
+                                  if default_extension == 'md'
+                                    f.puts "# Daily #{Date.today.strftime('%Y-%m-%d')}"
+                                  else
+                                    f.puts "#+TITLE: Daily #{Date.today.strftime('%Y-%m-%d')}"
+                                  end
+                                end
+                                puts "Created daily note: #{full_path}"
+                              end
 
-                            else
-                              puts "No valid action. Exiting."
-                              break
+                              # open with nb edit when in nb_support, or your editor otherwise
+                              edit_with_cleanup(editor_cmd, full_path)
                             end
+
+
+
+
+
                             end
                             end # start
                             end # CLI

@@ -1,6 +1,6 @@
 **CielagoNote** is a quick little thing to build a Notational Velocity-style TUI app on top of some common shell tools. 
 
-It was origiinally built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled notes, but you can use it on its own with any old editor and should look at the "Warnings" below before using it that way. 
+It was origiinally built to assume [`nb`](https://github.com/xwmx/nb) for version-controlled notes, but you can use it on its own with any old editor.   
 
 ---
 
@@ -8,25 +8,37 @@ It was origiinally built to assume [`nb`](https://github.com/xwmx/nb) for versio
 
 - Instant fuzzy search across `.org` and `.md` notes (powered by `fzf`)
 - Configurable exclusion of hidden directories or special folders (e.g., `.git/`, `denote/`)
-- YAML-based configuration (`~/.zvconfig.yml`)
+- YAML-based configuration (`~/.cnconfig.yml`)
 - New notes use date-stamped filenames (`YYYY-MM-DD-slugified-title.md`)
 - Clean previews with [`bat`](https://github.com/sharkdp/bat)
 - Daily notes: `C-t` to either make or jump to a daily note. 
+- Switchable support between the nb command line tool or standalone note creation. 
 
-## Warnings
+## nb support 
 
-This started as something to manage nb notes a little more quickly, but took a turn and can either continue to fit into `nb` or can just be a standalone notes manager: 
+This started as something to manage nb notes a little more quickly, but took a turn and can either continue to fit into `nb` or can just be a standalone notes manager. 
 
-- There's a fuzzy search plugin for nb that works fine and keeps you in complete alignment with nb if that's what you want, and may be good enough for most people. 
-- I've added preliminary support for nb file management and creation. It needs to be turned on in the config file (see _Configuration_ below)
-- With nb support enabled: 
-  - rename, deletion, and creation all go through nb commands
-  - your editor preference is overrideden in favor of your `nb` editor setting
-- There is a daily plugin for nb that I chose to ignore in favor of creating a daily note and editing it with nb_support on _or_ off. If you aren't a fan of that approach, don't use the `^t` option to make a daily note and just manage those from the command line nb interface: nb's `daily` plugin just wants a line of text to log. 
+If all you want is support for fuzzy search in nb itself, you may want to consider a [small plugin by Chris Woodham][fzf] that provides fuzzy title search and drops you into a proper nb edit session on open. 
 
-This all seems to work just fine, but it's preliminary support so you should pay attention to the first few outcomes. 
+cielagonote offers similar but also provides a few other convenience features to make it a little more speedy to work with nb. With nb configuration enabled in `~./cnconfig.yml` (see _Configuration_ below): 
+
+- support for nb file management (creation, deletion, renaming) to ensure the underlying nb repo stays in sync with the filesystem and remotes
+- support for nb's [daily plugin][], creating daily notes in its preferred `yyyymmdd.ext` format, or opening such notes when it finds them. 
+
+One thing to note: in nb_support mode, cielagonote will use the editor you have configured in nb, overriding the setting in `~/.cnconfig.yml`. That's so we can just use the `nb edit` command and get on with our day.
+
+[fzf]: https://github.com/xwmx/nb/issues/102#issuecomment-922791236
+[daily plugin]: https://github.com/xwmx/nb/blob/master/plugins/daily.nb-plugin
 
 ---
+
+## standalone use without nb support
+
+Without nb support enabled, cielagonote is more like a CLI Notational Velocity or [deft][], using standard tools to make, edit, delete, or rename notes. Unlike nb's daily plugin, cielagonote prefers a more readable `daily-yyyy-mm-dd.ext` format for daily notes since that's more amenable to fuzzy filename search, and works better for Markdown wiki systems that parse the file for an l1 title heading.
+
+
+[deft]: https://github.com/jrblevin/deft
+
 
 ## Requirements
 
@@ -57,10 +69,10 @@ This all seems to work just fine, but it's preliminary support so you should pay
 
 |Key Combo | Action |
 |----|----|
-|C-c | Copy to clipboard|
+|C-c | Copy note to clipboard|
 |C-d | Delete note (with confirm)|
 |C-r | Rename file|
-|C-t | Create or jump to daily-yyyy-mm-dd.ext|
+|C-t | Create or jump to a daily note |
 |C-q | Quit|
 
 ## Configuration

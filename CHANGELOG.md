@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## [0.10] - 2025-05-02
+
+This release improves support for the [stock nb daily plugin][daily], which assumes a file naming convention of `yyyymmdd.ext` and doesn't provide a title line in either case. 
+
+- When `nb_support: true` in your `~/.cnconfig.yml`, `^t` will either create or open a file in the nb-expected format using nb itself to insure proper sync.
+- When `nb_support: false` in your `~/.cnconfig.yml`, `^t` will create or open a file in the `daily-yyyy-mm-dd.ext` format, with an l1 title heading. 
+
+
 ## [0.9] - 2025-05-01
 - Fixing slugification to remove multiple substitutions from slugified files
 
@@ -29,3 +37,6 @@ Fixes a regression in nb file creation.
 
 ### Removed
 - No longer `reset`s the terminal when returning from edits. 
+
+
+[daily]: https://github.com/xwmx/nb/blob/master/plugins/daily.nb-plugin
