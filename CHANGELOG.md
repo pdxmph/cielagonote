@@ -1,4 +1,7 @@
 # CHANGELOG
+## [0.12] - 2025-05-02
+
+Sorts notes list by descending modification order. 
 
 ## [0.11] - 2025-05-02
 

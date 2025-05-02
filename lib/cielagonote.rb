@@ -104,14 +104,27 @@ module CielagoNote
       def self.today_filename(extension)
         "daily-#{Date.today.strftime('%Y-%m-%d')}.#{extension}"
       end
+def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
+  # 1) Gather all .md and .org files under notes_dir
+  pattern   = File.join(notes_dir, "**", "*.{md,org}")
+  all_files = Dir.glob(pattern, File::FNM_CASEFOLD)
+
+  # 2) Filter out excluded directories and (optionally) hidden files
+  exclude_paths = exclude_dirs.map { |d| File.expand_path(d, notes_dir) }
+  files = all_files.reject do |f|
+    exclude_paths.any? { |ex| f.start_with?(ex) } ||
+      (!hide_hidden && File.basename(f).start_with?('.'))
+  end
+
+  # 3) Sort by modification time (newest first), then convert to relative paths
+  files
+    .sort_by { |f| File.mtime(f) }
+    .reverse
+    .map    { |f| f.sub("#{notes_dir}/", '') }
+end
 
 
-      def self.load_notes(notes_dir, exclude_dirs, hide_hidden)
-        exclude_patterns = exclude_dirs.flat_map { |d| ["--glob '!#{d}'", "--glob '!#{d}/**'"] }.join(' ')
-        hidden_flag      = hide_hidden ? "" : "--hidden"
-        rg_command       = "rg --files #{hidden_flag} #{exclude_patterns} #{notes_dir}"
-        `#{rg_command}`.split("\n").map { |f| f.sub("#{notes_dir}/", '') }.uniq
-      end
+
 
       def self.edit_with_cleanup(editor_command, path)
         system("#{editor_command} \"#{path}\"")
