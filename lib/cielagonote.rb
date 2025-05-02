@@ -31,15 +31,21 @@ module CielagoNote
 
       # normalize and slugify any title
       def self.slugify(text)
-        # 1) normalize Unicode dashes (– — −) to ASCII hyphen
-        normalized = text.tr('–—−', '-')
-        # 2) downcase, strip punctuation except word/space/hyphen, collapse spaces to hyphens
-        normalized
+        text
+        # normalize any Unicode dashes into ASCII hyphens
+        .tr('–—−', '-')
         .downcase
         .strip
+        # drop anything that isn’t a word character, space, or hyphen
         .gsub(/[^\w\s-]/, '')
+        # turn runs of whitespace into single hyphens
         .gsub(/\s+/, '-')
+        # collapse multiple hyphens into one
+        .gsub(/-+/, '-')
+        # remove leading or trailing hyphens
+        .gsub(/\A-+|-+\z/, '')
       end
+
 
       # create (if needed) and open a note, honoring nb_support and special-casing "Daily"
       # in lib/cielagonote.rb, inside CLI
@@ -127,27 +133,27 @@ module CielagoNote
 
                             case key
                             when 'ctrl-n'
-  system("stty sane")
-  path = create_note(notes_dir, query, default_extension)
-  edit_with_cleanup(editor_cmd, path)
+                              system("stty sane")
+                              path = create_note(notes_dir, query, default_extension)
+                              edit_with_cleanup(editor_cmd, path)
 
 
-                          when 'enter'
-  if selection.start_with?('[+]') || (!query.empty? && selection.empty?)
-    system("stty sane")
-    path = create_note(notes_dir, query, default_extension)
-    edit_with_cleanup(editor_cmd, path)
-  elsif !selection.empty?
-    full_path = File.join(notes_dir, selection)
-    if File.exist?(full_path)
-      edit_with_cleanup(editor_cmd, full_path)
-    else
-      puts "Selected file does not exist. Aborting."
-    end
-  else
-    puts "No valid action. Exiting."
-    break
-  end
+                            when 'enter'
+                              if selection.start_with?('[+]') || (!query.empty? && selection.empty?)
+                                system("stty sane")
+                                path = create_note(notes_dir, query, default_extension)
+                                edit_with_cleanup(editor_cmd, path)
+                              elsif !selection.empty?
+                                full_path = File.join(notes_dir, selection)
+                                if File.exist?(full_path)
+                                  edit_with_cleanup(editor_cmd, full_path)
+                                else
+                                  puts "Selected file does not exist. Aborting."
+                                end
+                              else
+                                puts "No valid action. Exiting."
+                                break
+                              end
 
 
                             when 'ctrl-d'
@@ -233,10 +239,10 @@ module CielagoNote
 
 
                             when 'ctrl-t'
-  system("stty sane")
-  title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
-  path  = create_note(notes_dir, title, default_extension)
-  edit_with_cleanup(editor_cmd, path)
+                              system("stty sane")
+                              title = "Daily – #{Date.today.strftime('%Y-%m-%d')}"
+                              path  = create_note(notes_dir, title, default_extension)
+                              edit_with_cleanup(editor_cmd, path)
 
 
 
