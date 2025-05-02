@@ -1,9 +1,12 @@
 # CHANGELOG
 
-## [0.8] - 2025-05-01 
 
-- Removing confirm dialog from deletion when nb_support is true: nb will ask anyhow
+## [0.9] - 2025-05-01
 - Fixing slugification to remove multiple substitutions from slugified files
+
+
+## [0.8] - 2025-05-01 
+- Removing confirm dialog from deletion when nb_support is true: nb will ask anyhow
 
 ## [0.7] - 2025-05-01
 
